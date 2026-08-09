@@ -5,25 +5,10 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
 
 
-VERSION = "0.2.0"
-
-
-MENU = [
-    ("Software", "Manage installed software"),
-    ("Updates", "Update Xarc and system packages"),
-    ("System Info", "View system information"),
-    ("Services", "Manage system services"),
-    ("Storage", "View storage information"),
-    ("Backups", "Xarc backup system"),
-    ("Repair", "Repair Xarc system"),
-    ("Exit", "Exit Xarc SYS"),
-]
-
-
-def command_exists(command):
-    return shutil.which(command) is not None
+VERSION = "0.3.0"
 
 
 def run_admin(command):
@@ -31,12 +16,73 @@ def run_admin(command):
         return subprocess.run(
             ["ad", "run"] + command
         ).returncode
+    except FileNotFoundError:
+        print("SYS: AD was not found.")
+        print("Make sure the 'ad' command is installed.")
+        return 1
     except Exception as error:
-        print(f"Error: {error}")
+        print(f"SYS: Error: {error}")
         return 1
 
 
-def wait_for_key(stdscr):
+def install_package(packages):
+    if not packages:
+        print("SYS: specify a package.")
+        return 1
+
+    return run_admin(
+        ["pacman", "-S"] + packages
+    )
+
+
+def remove_package(packages):
+    if not packages:
+        print("SYS: specify a package.")
+        return 1
+
+    return run_admin(
+        ["pacman", "-R"] + packages
+    )
+
+
+def search_package(query):
+    if not query:
+        print("SYS: specify a search term.")
+        return 1
+
+    return subprocess.run(
+        ["pacman", "-Ss"] + query
+    ).returncode
+
+
+def update_system():
+    return run_admin(
+        ["pacman", "-Syu"]
+    )
+
+
+def show_info():
+    total, used, free = shutil.disk_usage("/")
+
+    print()
+    print("XARC SYSTEM INFORMATION")
+    print("------------------------")
+    print(f"Xarc SYS:     {VERSION}")
+    print(f"Hostname:     {platform.node()}")
+    print(f"OS:           {platform.system()}")
+    print(f"Kernel:       {platform.release()}")
+    print(f"Architecture: {platform.machine()}")
+    print(f"Python:       {platform.python_version()}")
+    print(f"User:         {os.getenv('USER', 'unknown')}")
+    print()
+    print("Storage")
+    print(f"Total:        {total / (1024 ** 3):.1f} GB")
+    print(f"Used:         {used / (1024 ** 3):.1f} GB")
+    print(f"Free:         {free / (1024 ** 3):.1f} GB")
+    print()
+
+
+def pause(stdscr):
     stdscr.addstr(
         curses.LINES - 2,
         2,
@@ -44,26 +90,6 @@ def wait_for_key(stdscr):
     )
     stdscr.refresh()
     stdscr.getch()
-
-
-def draw_header(stdscr, title, subtitle=None):
-    height, width = stdscr.getmaxyx()
-
-    stdscr.clear()
-
-    stdscr.addstr(
-        1,
-        max(0, (width - len(title)) // 2),
-        title,
-        curses.A_BOLD
-    )
-
-    if subtitle:
-        stdscr.addstr(
-            2,
-            max(0, (width - len(subtitle)) // 2),
-            subtitle
-        )
 
 
 def software_menu(stdscr):
@@ -80,10 +106,13 @@ def software_menu(stdscr):
 
     while True:
 
-        draw_header(
-            stdscr,
-            "XARC SYS",
-            "Software Management"
+        stdscr.clear()
+
+        stdscr.addstr(
+            1,
+            4,
+            "XARC SYS / SOFTWARE",
+            curses.A_BOLD
         )
 
         for i, option in enumerate(options):
@@ -91,7 +120,7 @@ def software_menu(stdscr):
             attr = curses.A_REVERSE if i == selected else 0
 
             stdscr.addstr(
-                5 + i,
+                4 + i,
                 6,
                 option,
                 attr
@@ -124,8 +153,8 @@ def software_menu(stdscr):
                 ).strip()
 
                 if package:
-                    run_admin(
-                        ["pacman", "-S", package]
+                    install_package(
+                        package.split()
                     )
 
                 input(
@@ -141,8 +170,8 @@ def software_menu(stdscr):
                 ).strip()
 
                 if package:
-                    run_admin(
-                        ["pacman", "-R", package]
+                    remove_package(
+                        package.split()
                     )
 
                 input(
@@ -153,13 +182,13 @@ def software_menu(stdscr):
 
                 curses.endwin()
 
-                package = input(
+                query = input(
                     "Search for: "
                 ).strip()
 
-                if package:
-                    subprocess.run(
-                        ["pacman", "-Ss", package]
+                if query:
+                    search_package(
+                        query.split()
                     )
 
                 input(
@@ -187,104 +216,82 @@ def software_menu(stdscr):
 
 def updates_menu(stdscr):
 
-    draw_header(
-        stdscr,
-        "XARC SYS",
-        "System Updates"
-    )
+    stdscr.clear()
 
     stdscr.addstr(
-        5,
+        3,
         4,
-        "Checking for updates..."
+        "Updating Xarc system...",
+        curses.A_BOLD
     )
 
     stdscr.refresh()
 
     curses.endwin()
 
-    run_admin(
-        ["pacman", "-Syu"]
-    )
+    update_system()
 
     input(
         "\nPress Enter to return..."
     )
 
 
-def system_info(stdscr):
+def system_info_menu(stdscr):
 
-    draw_header(
-        stdscr,
-        "XARC SYS",
-        "System Information"
-    )
-
-    info = [
-        f"Xarc SYS version: {VERSION}",
-        f"Hostname:         {platform.node()}",
-        f"OS:               {platform.system()}",
-        f"Kernel:           {platform.release()}",
-        f"Architecture:     {platform.machine()}",
-        f"Python:           {platform.python_version()}",
-        f"User:             {os.getenv('USER', 'unknown')}",
-    ]
-
-    for i, line in enumerate(info):
-        stdscr.addstr(
-            5 + i,
-            4,
-            line
-        )
-
-    wait_for_key(stdscr)
-
-
-def storage_menu(stdscr):
-
-    draw_header(
-        stdscr,
-        "XARC SYS",
-        "Storage"
-    )
+    stdscr.clear()
 
     total, used, free = shutil.disk_usage("/")
 
-    total_gb = total / (1024 ** 3)
-    used_gb = used / (1024 ** 3)
-    free_gb = free / (1024 ** 3)
-
     info = [
-        f"Total: {total_gb:.1f} GB",
-        f"Used:  {used_gb:.1f} GB",
-        f"Free:  {free_gb:.1f} GB",
+        "XARC SYSTEM INFORMATION",
+        "",
+        f"Xarc SYS:     {VERSION}",
+        f"Hostname:     {platform.node()}",
+        f"OS:           {platform.system()}",
+        f"Kernel:       {platform.release()}",
+        f"Architecture: {platform.machine()}",
+        f"Python:       {platform.python_version()}",
+        f"User:         {os.getenv('USER', 'unknown')}",
+        "",
+        "Storage",
+        f"Total:        {total / (1024 ** 3):.1f} GB",
+        f"Used:         {used / (1024 ** 3):.1f} GB",
+        f"Free:         {free / (1024 ** 3):.1f} GB",
     ]
 
     for i, line in enumerate(info):
         stdscr.addstr(
-            5 + i,
+            2 + i,
             4,
             line
         )
 
-    wait_for_key(stdscr)
+    pause(stdscr)
 
 
 def placeholder(stdscr, title, message):
 
-    draw_header(
-        stdscr,
-        "XARC SYS",
-        title
+    stdscr.clear()
+
+    stdscr.addstr(
+        2,
+        4,
+        f"XARC SYS / {title}",
+        curses.A_BOLD
     )
 
     stdscr.addstr(
-        6,
+        5,
         4,
         message
     )
 
-    wait_for_key(stdscr)
+    pause(stdscr)
+
+
+def launch_tui():
+
+    curses.wrapper(main)
 
 
 def main(stdscr):
@@ -292,19 +299,42 @@ def main(stdscr):
     curses.curs_set(0)
     stdscr.keypad(True)
 
+    menu = [
+        "Software",
+        "Updates",
+        "System Information",
+        "Services",
+        "Storage",
+        "Backups",
+        "Repair",
+        "Exit",
+    ]
+
     selected = 0
 
     while True:
 
-        draw_header(
-            stdscr,
-            "XARC SYS",
-            "System Management"
+        stdscr.clear()
+
+        height, width = stdscr.getmaxyx()
+
+        title = "XARC SYS"
+        subtitle = "System Management"
+
+        stdscr.addstr(
+            1,
+            max(0, (width - len(title)) // 2),
+            title,
+            curses.A_BOLD
         )
 
-        for i, (name, description) in enumerate(MENU):
+        stdscr.addstr(
+            2,
+            max(0, (width - len(subtitle)) // 2),
+            subtitle
+        )
 
-            y = 5 + i
+        for i, item in enumerate(menu):
 
             attr = (
                 curses.A_REVERSE
@@ -313,20 +343,14 @@ def main(stdscr):
             )
 
             stdscr.addstr(
-                y,
-                5,
-                name,
+                5 + i,
+                6,
+                item,
                 attr
             )
 
-            stdscr.addstr(
-                y,
-                25,
-                description
-            )
-
         stdscr.addstr(
-            curses.LINES - 2,
+            height - 2,
             2,
             "↑↓ / J K   Navigate    Enter   Select    Q   Quit"
         )
@@ -339,13 +363,13 @@ def main(stdscr):
 
             selected = (
                 selected - 1
-            ) % len(MENU)
+            ) % len(menu)
 
         elif key in (curses.KEY_DOWN, ord("j")):
 
             selected = (
                 selected + 1
-            ) % len(MENU)
+            ) % len(menu)
 
         elif key in (10, 13):
 
@@ -356,29 +380,33 @@ def main(stdscr):
                 updates_menu(stdscr)
 
             elif selected == 2:
-                system_info(stdscr)
+                system_info_menu(stdscr)
 
             elif selected == 3:
                 placeholder(
                     stdscr,
-                    "Services",
-                    "Xarc service manager is coming soon."
+                    "SERVICES",
+                    "Xarc service management is coming soon."
                 )
 
             elif selected == 4:
-                storage_menu(stdscr)
+                placeholder(
+                    stdscr,
+                    "STORAGE",
+                    "Xarc storage management is coming soon."
+                )
 
             elif selected == 5:
                 placeholder(
                     stdscr,
-                    "Backups",
+                    "BACKUPS",
                     "Xarc automatic backup system is coming soon."
                 )
 
             elif selected == 6:
                 placeholder(
                     stdscr,
-                    "Repair",
+                    "REPAIR",
                     "Xarc automatic repair system is coming soon."
                 )
 
@@ -389,5 +417,58 @@ def main(stdscr):
             break
 
 
+def cli():
+
+    args = sys.argv[1:]
+
+    if not args:
+        launch_tui()
+        return 0
+
+    command = args[0]
+    arguments = args[1:]
+
+    if command in ("help", "--help", "-h"):
+        print("""
+Xarc SYS
+
+Usage:
+    sys                     Open Xarc System
+    sys install <package>   Install software
+    sys remove <package>    Remove software
+    sys search <query>      Search for software
+    sys update              Update the system
+    sys info                Show system information
+    sys version             Show SYS version
+    sys help                Show this help
+""")
+        return 0
+
+    if command == "install":
+        return install_package(arguments)
+
+    if command == "remove":
+        return remove_package(arguments)
+
+    if command == "search":
+        return search_package(arguments)
+
+    if command == "update":
+        return update_system()
+
+    if command == "info":
+        show_info()
+        return 0
+
+    if command == "version":
+        print(f"Xarc SYS {VERSION}")
+        return 0
+
+    print(f"SYS: Unknown command '{command}'")
+    print("Run 'sys help' for help.")
+
+    return 1
+
+
 if __name__ == "__main__":
-    curses.wrapper(main)
+    sys.exit(cli())

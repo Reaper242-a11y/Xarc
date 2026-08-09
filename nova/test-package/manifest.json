@@ -1,0 +1,9 @@
+{
+    "format": 1,
+    "name": "hello-xarc",
+    "version": "1.0.0",
+    "architecture": "x86_64",
+    "description": "Hello Xarc example package",
+    "license": "Apache-2.0",
+    "dependencies": []
+}
